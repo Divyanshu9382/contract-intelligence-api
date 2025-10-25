@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]
+langchain
+chromadb
+python-multipart
+pydantic-settings
+pymupdf
+langchain-google-vertexai
+langchain-core
+langchain-text-splitters
+langchain-community
+langchain-chroma
+pytest
+httpx

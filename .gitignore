@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.env
+venv/
+*.egg-info/
+
+# Docker
+.dockerignore
+
+# IDE
+.idea/
+.vscode/
+gcp-service-account.json
+

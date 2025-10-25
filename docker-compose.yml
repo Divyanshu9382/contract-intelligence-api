@@ -1,0 +1,31 @@
+services:
+  # This is our FastAPI application service
+  api:
+    build: .
+    container_name: contract_api_service
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/code/app
+      # Mount the service account key into the container
+      - ./gcp-service-account.json:/code/gcp-service-account.json
+    depends_on:
+      - chroma
+    env_file:
+      - .env # This loads GCLOUD_PROJECT
+    environment:
+      # Tell Google libraries where to find the key
+      - GOOGLE_APPLICATION_CREDENTIALS=/code/gcp-service-account.json
+
+  # This is our ChromaDB service
+  chroma:
+    image: chromadb/chroma
+    container_name: contract_chroma_db
+    ports:
+      - "8001:8000" # We map Chroma's port 8000 to our local port 8001
+    volumes:
+      - chroma_data:/chroma/.chroma/index # Persist data in a volume
+
+# This defines the named volume to persist Chroma's data
+volumes:
+  chroma_data:

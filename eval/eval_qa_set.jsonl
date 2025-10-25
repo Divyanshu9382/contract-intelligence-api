@@ -1,0 +1,5 @@
+{"question": "What is the purpose of this Agreement?", "expected_answer_keywords": ["preventing", "unauthorised disclosure", "sensitive information"]}
+{"question": "Who is the Disclosing Party?", "expected_answer_keywords": ["national archives"]}
+{"question": "What are the exclusions from Sensitive Information?", "expected_answer_keywords": ["publicly known", "discovered created before disclosure", "learned through legitimate means", "disclosed prior written approval", "independently developed"]}
+{"question": "What happens if a court finds a provision invalid?", "expected_answer_keywords": ["remainder interpreted", "effect intent parties"]}
+{"question": "How long does the duty to hold Sensitive Information in confidence last?", "expected_answer_keywords": ["no longer qualifies trade secret", "disclosing party sends written notice releasing"]}
