@@ -42,7 +42,7 @@ This project implements a FastAPI-based API for ingesting and analyzing contract
 
 1.  **Clone the repository**:
     ```bash
-    git clone <your-repo-url>
+    git clone <https://github.com/Divyanshu9382/contract-intelligence-api.git>
     cd contract-api
     ```
 2.  **Build and Run with Docker Compose**:
