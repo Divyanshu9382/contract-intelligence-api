@@ -1,6 +1,6 @@
 # Contract Intelligence API
 
-This project implements a FastAPI-based API for ingesting and analyzing contract PDFs using AI, fulfilling the requirements of the AI Developer assignment.
+I built this API to analyze contract PDFs using AI. You can upload contracts, ask questions about them, extract key info, and find risky clauses.
 
 ## Features
 
