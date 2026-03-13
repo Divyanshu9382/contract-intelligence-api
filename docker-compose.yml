@@ -7,15 +7,10 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/code/app
-      # Mount the service account key into the container
-      - ./gcp-service-account.json:/code/gcp-service-account.json
     depends_on:
       - chroma
     env_file:
-      - .env # This loads GCLOUD_PROJECT
-    environment:
-      # Tell Google libraries where to find the key
-      - GOOGLE_APPLICATION_CREDENTIALS=/code/gcp-service-account.json
+      - .env # This loads GOOGLE_API_KEY
 
   # This is our ChromaDB service
   chroma:

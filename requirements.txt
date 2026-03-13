@@ -5,7 +5,7 @@ chromadb
 python-multipart
 pydantic-settings
 pymupdf
-langchain-google-vertexai
+langchain-google-genai
 langchain-core
 langchain-text-splitters
 langchain-community

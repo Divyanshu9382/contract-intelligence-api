@@ -4,20 +4,20 @@ import asyncio
 import os
 from concurrent.futures import ThreadPoolExecutor
 
-# Configuration
+# where our API is running
 API_BASE_URL = "http://localhost:8000"
 QA_SET_FILE = os.path.join(os.path.dirname(__file__), "eval_qa_set.jsonl")
 ASK_ENDPOINT = "/ask"
-MAX_CONCURRENT_REQUESTS = 1 # Run sequentially to avoid quota limits
+MAX_CONCURRENT_REQUESTS = 1 # don't spam the API, go one by one
 
-# Function to call the /ask endpoint
+# send a question to our API and get back the answer
 async def ask_api(client: httpx.AsyncClient, question: str) -> str:
-    """Sends a question to the /ask endpoint and returns the answer."""
+    """ask the API a question and return what it says"""
     try:
         response = await client.post(ASK_ENDPOINT, json={"question": question}, timeout=60)
-        response.raise_for_status() # Raise exception for bad status codes
+        response.raise_for_status() # blow up if we get 4xx/5xx errors
         data = response.json()
-        return data.get("answer", "").lower() # Return answer in lowercase
+        return data.get("answer", "").lower() # lowercase for easier matching
     except httpx.HTTPStatusError as e:
         print(f"HTTP Error for question '{question}': {e.response.status_code} - {e.response.text}")
         return "[API ERROR]"
@@ -25,21 +25,21 @@ async def ask_api(client: httpx.AsyncClient, question: str) -> str:
         print(f"Error asking question '{question}': {e}")
         return "[SCRIPT ERROR]"
 
-# Function to evaluate a single Q&A pair
+# test one question and see if the answer has the right keywords
 async def evaluate_pair(client: httpx.AsyncClient, qa_pair: dict) -> bool:
-    """Evaluates a single question-answer pair."""
+    """ask one question and check if we got the expected keywords back"""
     question = qa_pair["question"]
     expected_keywords = [kw.lower() for kw in qa_pair["expected_answer_keywords"]]
     
     print(f"Asking: {question}")
     actual_answer = await ask_api(client, question)
-    print(f"Received: {actual_answer[:100]}...") # Print truncated answer
+    print(f"Received: {actual_answer[:100]}...") # just show first 100 chars
     
     if "[API ERROR]" in actual_answer or "[SCRIPT ERROR]" in actual_answer:
         print("--> FAILED (Error during API call)")
         return False
         
-    # Check if all expected keywords are in the actual answer
+    # see if all the keywords we expect are actually in the answer
     match = all(keyword in actual_answer for keyword in expected_keywords)
     
     if match:
@@ -50,9 +50,9 @@ async def evaluate_pair(client: httpx.AsyncClient, qa_pair: dict) -> bool:
     print("-" * 20)
     return match
 
-# Main evaluation function
+# the main function that runs everything
 async def main():
-    """Loads QA set, runs evaluation, and prints results."""
+    """load questions, test them all, show the results"""
     qa_pairs = []
     try:
         with open(QA_SET_FILE, 'r') as f:
@@ -79,9 +79,9 @@ async def main():
         for pair in qa_pairs:
             result = await evaluate_pair(client, pair)
             results.append(result)
-            await asyncio.sleep(1)  # Add delay between requests to avoid quota limits
+            await asyncio.sleep(1)  # wait a bit so we don't hit rate limits
 
-    # Calculate and print score
+    # figure out how we did
     passed_count = sum(results)
     total_count = len(qa_pairs)
     score = (passed_count / total_count) * 100 if total_count > 0 else 0
@@ -94,14 +94,14 @@ async def main():
     print(f"Score: {score:.2f}%")
     print("=" * 30)
     
-    # Write one-line score summary to a file as requested
+    # save the score to a file too
     summary_file = os.path.join(os.path.dirname(__file__), "eval_summary.txt")
     with open(summary_file, 'w') as f:
          f.write(f"RAG Evaluation Score: {score:.2f}% ({passed_count}/{total_count} passed)\n")
     print(f"Summary written to {summary_file}")
 
 if __name__ == "__main__":
-    # Check if API is running before starting
+    # make sure the API is actually running first
     try:
         response = httpx.get(f"{API_BASE_URL}/healthz", timeout=5)
         response.raise_for_status()

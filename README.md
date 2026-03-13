@@ -1,242 +1,209 @@
 # Contract Intelligence API
 
-This project implements a FastAPI-based API for ingesting and analyzing contract PDFs using AI, fulfilling the requirements of the AI Developer assignment.
+I built this API to analyze contract PDFs using AI. You can upload contracts, ask questions about them, extract key info, and find risky clauses.
 
-## Features
+## What it does
 
-* **Ingest PDFs**: Upload one or more contract PDFs (`POST /ingest`).
-* **Extract Fields**: Extract structured data (parties, dates, clauses, etc.) from contracts (`POST /extract`).
-* **Ask Questions (RAG)**: Answer questions based *only* on the content of ingested documents (`POST /ask`).
-* **Stream Answers**: Get answers token-by-token for a better user experience (`GET /ask/stream`).
-* **Audit Risks**: Identify potentially risky clauses (e.g., unlimited liability, auto-renewal) (`POST /audit`).
-* **Monitoring**: Basic health check (`GET /healthz`) and usage metrics (`GET /metrics`).
-* **Documentation**: Automatic OpenAPI (Swagger) docs (`GET /docs`).
+* **Upload PDFs** - `POST /ingest` - throw your contract PDFs at it
+* **Extract data** - `POST /extract` - pulls out parties, dates, terms, etc.
+* **Ask questions** - `POST /ask` - RAG-based Q&A that only uses your documents
+* **Stream answers** - `GET /ask/stream` - same as above but streams the response
+* **Find risks** - `POST /audit` - spots dangerous clauses like unlimited liability
+* **Health check** - `GET /healthz` - is it working?
+* **Usage stats** - `GET /metrics` - how much you've used it
+* **API docs** - `GET /docs` - Swagger UI for testing
 
-## Tech Stack
+## What I used to build it
 
-* **Backend**: Python, FastAPI
-* **AI/ML**: Google Vertex AI (Gemini 2.5 Flash, Text Embedding 004), LangChain
-* **Database**: ChromaDB (Vector Store & Document Store)
-* **PDF Parsing**: PyMuPDF (`fitz`)
-* **Containerization**: Docker, Docker Compose
-* **Testing**: Pytest, HTTPX
+* **FastAPI** - for the web API (way better than Flask)
+* **Google Vertex AI** - Gemini 2.5 Flash for chat, Text Embedding 004 for vectors
+* **LangChain** - to glue everything together
+* **ChromaDB** - vector database for storing document chunks
+* **PyMuPDF** - for extracting text from PDFs
+* **Docker** - so you don't have to deal with Python dependencies
+* **Pytest** - for testing everything
 
-## Setup and Running
+## How to run it
 
-### Prerequisites
+### What you need first
 
-* Docker Desktop installed and running.
-* Google Cloud Project with Vertex AI API enabled.
-* A Google Cloud Service Account JSON key (`gcp-service-account.json`) with the "Vertex AI User" role.
+* Docker Desktop running
+* Google Cloud project with Vertex AI enabled
+* Service account key with "Vertex AI User" permissions
 
-### Environment Variables
+### Setup
 
-1.  **Create `.env` file**: In the project root, create a file named `.env`.
-2.  **Add Project ID**: Add your Google Cloud Project ID to the `.env` file:
-    ```
-    GCLOUD_PROJECT=your-gcp-project-id-here
-    ```
-3.  **Add Service Account Key**: Place your downloaded Google Cloud Service Account key file in the project root and name it exactly `gcp-service-account.json`. *(Ensure this file is listed in your `.gitignore`)*.
+1. **Make a `.env` file** with your GCP project:
+   ```
+   GCLOUD_PROJECT=your-project-id
+   ```
 
-### Running the Application
+2. **Drop your service account key** in the root folder as `gcp-service-account.json`
+   (Don't commit this file!)
 
-1.  **Clone the repository**:
-    ```bash
-    git clone <your-repo-url>
-    cd contract-api
-    ```
-2.  **Build and Run with Docker Compose**:
-    ```bash
-    docker compose up --build
-    ```
-3.  **Access the API**:
-    * API Docs (Swagger UI): [http://localhost:8000/docs](http://localhost:8000/docs)
-    * Health Check: [http://localhost:8000/healthz](http://localhost:8000/healthz)
-    * Metrics: [http://localhost:8000/metrics](http://localhost:8000/metrics)
+3. **Start everything:**
+   ```bash
+   docker compose up --build
+   ```
 
-## API Endpoints & Examples
+4. **Check it's working:**
+   * API docs: http://localhost:8000/docs
+   * Health check: http://localhost:8000/healthz
+   * Metrics: http://localhost:8000/metrics
 
-### `POST /ingest`
+## How to use the API
 
-Uploads one or more PDF files.
+I'll show you the main endpoints with actual curl examples.
 
-**Example `curl`:**
+### Upload a contract
+
 ```bash
-curl -X 'POST' \
-  'http://localhost:8000/ingest' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: multipart/form-data' \
-  -F 'files=@./path/to/your/contract1.pdf;type=application/pdf' \
-  -F 'files=@./path/to/your/contract2.pdf;type=application/pdf'
+curl -X POST "http://localhost:8000/ingest" \
+  -F "files=@your-contract.pdf"
 ```
 
-**Success Response (200 OK):**
+You get back document IDs:
 ```json
 {
-  "document_ids": ["uuid-for-contract1", "uuid-for-contract2"]
+  "document_ids": ["abc-123-def"]
 }
 ```
 
-### `POST /extract`
+### Extract key info
 
-Extracts structured fields from an ingested document.
-
-**Example `curl`:**
 ```bash
-# Replace {document_id} with an ID from /ingest
-curl -X 'POST' \
-  'http://localhost:8000/extract?document_id={document_id}' \
-  -H 'accept: application/json'
+curl -X POST "http://localhost:8000/extract?document_id=abc-123-def"
 ```
 
-**Success Response (200 OK):**
+Gets you structured data:
 ```json
 {
-  "parties": ["Party A", "Party B"],
-  "effective_date": "2025-10-25",
-  "term": "1 year",
-  "governing_law": "California",
-  "payment_terms": "Net 30 days",
-  "termination": "Either party may terminate with 30 days notice",
-  "auto_renewal": true,
-  "confidentiality": "5 year confidentiality period",
-  "indemnity": "Mutual indemnification clause",
+  "parties": ["Acme Corp", "Widget Inc"],
+  "effective_date": "2024-01-15",
+  "term": "2 years",
+  "governing_law": "Delaware",
+  "auto_renewal": false,
   "liability_cap": {
-    "number": 100000,
+    "number": 50000,
     "currency": "USD"
-  },
-  "signatories": [
-    {
-      "name": "John Doe",
-      "title": "CEO"
-    }
-  ]
+  }
 }
 ```
 
-### `POST /ask`
+### Ask questions
 
-Answers a question based on ingested documents.
-
-**Example `curl`:**
 ```bash
-curl -X 'POST' \
-  'http://localhost:8000/ask' \
-  -H 'accept: application/json' \
-  -H 'Content-Type: application/json' \
-  -d '{
-  "question": "What is the governing law?"
-}'
+curl -X POST "http://localhost:8000/ask" \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What happens if someone breaches this contract?"}'
 ```
 
-**Success Response (200 OK):**
+You get answers with sources:
 ```json
 {
-  "answer": "The agreement is governed by the laws of the State of California.",
+  "answer": "The breaching party must pay damages and legal fees...",
   "citations": [
     {
-      "document_id": "some-uuid",
-      "filename": "contract1.pdf",
-      "chunk_number": 5
+      "document_id": "abc-123-def",
+      "filename": "contract.pdf",
+      "chunk_number": 3
     }
   ]
 }
 ```
 
-### `POST /audit`
+### Find risky stuff
 
-Audits a document for risky clauses.
-
-**Example `curl`:**
 ```bash
-# Replace {document_id} with an ID from /ingest
-curl -X 'POST' \
-  'http://localhost:8000/audit?document_id={document_id}' \
-  -H 'accept: application/json'
+curl -X POST "http://localhost:8000/audit?document_id=abc-123-def"
 ```
 
-**Success Response (200 OK):**
+Spots dangerous clauses:
 ```json
 {
-  "document_id": "{document_id}",
+  "document_id": "abc-123-def",
   "findings": [
     {
-      "clause": "Confidentiality Clause",
-      "evidence": "The receiving party agrees to maintain confidentiality for a period of 5 years",
-      "severity": "Low",
-      "explanation": "Standard confidentiality period, not excessive"
-    },
-    {
-      "clause": "Auto-Renewal",
-      "evidence": "This agreement shall automatically renew unless terminated with 30 days notice",
-      "severity": "Medium",
-      "explanation": "Auto-renewal with short notice period may be risky"
+      "clause": "Unlimited Liability",
+      "evidence": "Party shall be liable for all damages without limit",
+      "severity": "High",
+      "explanation": "No cap on damages - very risky"
     }
   ]
 }
 ```
 
-### `GET /ask/stream`
+### Stream responses
 
-Streams the answer to a question token-by-token.
-
-**Example `curl` (Use Command Prompt, not PowerShell):**
 ```bash
-# Replace spaces in question with %20
-curl -N "http://localhost:8000/ask/stream?question=What%20is%20the%20term%20of%20this%20agreement?"
+curl -N "http://localhost:8000/ask/stream?question=What%20are%20the%20payment%20terms?"
 ```
 
-**Output (Server-Sent Events):**
+Gets you real-time streaming (good for UIs):
 ```
-data: {"token": "The"}
-data: {"token": " term"}
+data: {"token": "Payment"}
 data: {"token": " is"}
-data: {"token": " one"}
-data: {"token": " year"}
-data: {"token": "."}
+data: {"token": " due"}
+data: {"token": " within"}
+data: {"token": " 30"}
+data: {"token": " days"}
 data: {"token": "[DONE]"}
 ```
 
-## Running Tests
+## Testing
 
-Make sure the API is running via `docker compose up -d`.
-
-Install test dependencies (if not already in your local environment):
+First make sure it's running:
 ```bash
-pip install pytest pytest-asyncio httpx
+docker compose up -d
 ```
 
-Run the tests from the project root directory:
+Then run the tests:
 ```bash
 pytest
 ```
 
-## Trade-offs and Design Choices
+Or test the RAG evaluation:
+```bash
+python eval/evaluate_rag.py
+```
 
-**Framework**: Chose FastAPI for its async capabilities, performance, automatic docs, and Pydantic integration, making it well-suited for I/O-bound tasks like interacting with LLMs and databases.
+## Why I built it this way
 
-**Database**: Used ChromaDB as it's a simple, self-contained vector database suitable for local development and demonstration via Docker. A production system might use a managed vector DB (like Vertex AI Matching Engine or Pinecone) for scalability and reliability. The same ChromaDB collection (contracts) is used for storing full text for /extract and /audit for simplicity, though separate storage could be considered.
+**FastAPI** - Great for APIs, auto-generates docs, handles async well
 
-**LLM**: Leveraged Google Vertex AI (Gemini 2.5 Flash and Text Embedding 004) via LangChain for powerful models accessible via service account authentication, suitable for a "production-ish" setup.
+**ChromaDB** - Simple vector DB that just works. For production I'd probably use something managed like Pinecone
 
-**Chunking**: Employed RecursiveCharacterTextSplitter from LangChain, a standard approach for breaking down text while trying to maintain semantic context. Chunk size (1000) and overlap (100) are common defaults but could be tuned based on contract types and LLM context window limits.
+**Google Vertex AI** - Reliable, good models, proper enterprise auth
 
-**Error Handling**: Implemented HTTPException for proper FastAPI error responses. /extract uses 404 for missing documents, while other endpoints may return 500 for system errors. This provides clear HTTP status codes for different error conditions.
+**LangChain** - Makes it easy to chain LLM calls and handle embeddings
 
-**Streaming**: Used Server-Sent Events (SSE) via FastAPI's StreamingResponse for /ask/stream as it's simpler to implement than WebSockets for unidirectional streaming from server to client.
+**Docker** - No dependency hell, easy to deploy
 
-**Metrics**: Implemented very basic in-memory counters with thread-safe access. A production system would use dedicated monitoring tools (e.g., Prometheus, Grafana, Cloud Monitoring).
+## Current limitations
 
-## Limitations
+- **No auth** - Anyone can use the API
+- **Local only** - Runs on your machine, not scalable
+- **Basic error handling** - Could be more robust
+- **Google quotas** - Easy to hit rate limits
+- **PDF parsing** - Struggles with complex layouts or scanned docs
+- **Memory usage** - Keeps everything in RAM
+- **No PII redaction** - Logs might contain sensitive data
 
-**Scalability**: The current setup runs locally via Docker Compose and isn't designed for high concurrency or large datasets.
+## What I'd add for production
 
-**PDF Complexity**: PyMuPDF is generally robust but might struggle with complex layouts, scanned images (OCR not implemented), or password-protected PDFs.
+- API authentication (keys, OAuth, etc.)
+- Better error handling and retries
+- Horizontal scaling
+- Proper logging and monitoring
+- PII detection and masking
+- Rule-based fallbacks for extraction
+- Better chunk size optimization
+- Database persistence
+- Rate limiting
+- Health checks and metrics
 
-**Extraction/Audit Accuracy**: Performance heavily depends on the LLM's capabilities and the quality of the prompts. Rule-based fallbacks were not explicitly implemented in this version but could be added as improvements.
+## Evaluation results
 
-**Security**: Basic setup. No robust authentication/authorization implemented for API endpoints beyond Google Cloud auth for the LLM. PII redaction for logs is mentioned but not explicitly implemented.
+The RAG system currently scores around 20% on my test questions. Not amazing, but it's working - the failures are mostly due to strict keyword matching rather than wrong answers.
 
-**Testing**: Basic happy-path and some error tests included. More comprehensive testing (edge cases, load testing) would be needed for production.
-
-**Memory Usage**: In-memory metrics and lack of document cleanup could lead to memory issues with large numbers of documents in a long-running instance.
+Check out `eval/eval_summary.txt` for the latest results.
