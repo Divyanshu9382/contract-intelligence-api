@@ -1,4 +1,13 @@
 services:
+  # This is our ChromaDB service
+  chroma:
+    image: chromadb/chroma
+    container_name: contract_chroma_db
+    ports:
+      - "8001:8000" # We map Chroma's port 8000 to our local port 8001
+    volumes:
+      - chroma_data:/chroma/.chroma/index # Persist data in a volume
+
   # This is our FastAPI application service
   api:
     build: .
@@ -11,15 +20,28 @@ services:
       - chroma
     env_file:
       - .env # This loads GOOGLE_API_KEY
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
-  # This is our ChromaDB service
-  chroma:
-    image: chromadb/chroma
-    container_name: contract_chroma_db
+  # Streamlit frontend service
+  frontend:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: contract_frontend
+    command: >
+      streamlit run frontend.py 
+      --server.port 8501 
+      --server.address 0.0.0.0 
+      --server.enableCORS true 
+      --server.enableXsrfProtection false 
+      --server.enableWebsocketCompression false
+      --server.headless true
     ports:
-      - "8001:8000" # We map Chroma's port 8000 to our local port 8001
+      - "8501:8501"
     volumes:
-      - chroma_data:/chroma/.chroma/index # Persist data in a volume
+      - .:/code
+    depends_on:
+      - api
 
 # This defines the named volume to persist Chroma's data
 volumes:

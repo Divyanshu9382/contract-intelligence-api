@@ -1,5 +1,6 @@
 # All the stuff we need to import to make this API work
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import List, Optional, AsyncGenerator
 import uuid  # for making random document IDs
@@ -115,7 +116,7 @@ metrics = {
 metrics_lock = threading.Lock()  # so multiple requests don't mess up the counters
 
 
-# Simple backup method to extract info without using AI (uses pattern matching)
+# Simple backup method to extract info withoutusing AI (uses pattern matching)
 def extract_fields_rules(full_text: str) -> dict:
     """Very basic rule-based extraction for limited fields."""
     # Start with empty results
@@ -238,6 +239,15 @@ app = FastAPI(
     description="API for ingesting and analyzing contract PDFs.",
     version="0.1.0",
     lifespan=lifespan  # run our startup/shutdown code
+)
+
+# Add CORS middleware to allow frontend connections
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8501"],  # Your Streamlit frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -570,6 +580,45 @@ def audit_document(document_id: str):
         return AuditResponse(document_id=document_id, findings=[
             RiskFinding(clause="Analysis Error", evidence=str(e), severity=Severity.HIGH,
                         explanation="Failed to analyze document for risks")])
+
+
+# --- NEW Risk Audit Endpoint ---
+@app.get("/audit/{document_id}", tags=["Document Analysis"])
+def audit_contract_risks(document_id: str):
+    """Specialized risk auditor that looks for dangerous contract clauses"""
+    if not llm or not collection:
+        raise HTTPException(status_code=503, detail="System not initialized")
+    
+    try:
+        # Get the full document text
+        doc_data = collection.get(ids=[document_id])
+        if not doc_data or not doc_data.get('documents'):
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        full_text = doc_data['documents'][0]
+        
+        # Specialized Risk Audit Prompt
+        audit_prompt = f"""
+        Act as a senior legal auditor. Analyze the following contract text for:
+        1. Unfair termination clauses.
+        2. Missing governing law or jurisdiction.
+        3. Hidden auto-renewal (Evergreen) clauses.
+        4. Unlimited liability or indemnity risks.
+        5. Unreasonable payment terms or penalties.
+        6. Broad confidentiality or non-compete clauses.
+        
+        Provide a list of "Red Flags" with a short explanation for each.
+        Format your response as a bulleted list with clear risk categories.
+        
+        Contract Text:
+        {full_text[:10000]}  # Limiting text to stay within token limits
+        """
+        
+        response = llm.invoke(audit_prompt)
+        return {"risks": response.content}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Risk audit failed: {str(e)}")
 
 
 # --- MODIFIED /ask/stream Endpoint ---
