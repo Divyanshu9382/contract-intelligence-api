@@ -1,48 +1,54 @@
 services:
-  # This is our ChromaDB service
+  # 1. Vector Database: ChromaDB
   chroma:
-    image: chromadb/chroma
+    image: chromadb/chroma:0.4.24
     container_name: contract_chroma_db
     ports:
-      - "8001:8000" # We map Chroma's port 8000 to our local port 8001
+      - "8001:8000"
     volumes:
-      - chroma_data:/chroma/.chroma/index # Persist data in a volume
+      - chroma_data:/data
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=False
+    restart: unless-stopped
 
-  # This is our FastAPI application service
+  # 2. Backend: FastAPI Application
   api:
     build: .
     container_name: contract_api_service
+    working_dir: /code
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/code/app
+      - .:/code
     depends_on:
       - chroma
     env_file:
-      - .env # This loads GOOGLE_API_KEY
+      - .env
+    # Runs main:app directly from the /code directory
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
 
-  # Streamlit frontend service
+  # 3. Frontend: Streamlit Dashboard
   frontend:
-    build: 
-      context: .
-      dockerfile: Dockerfile
+    build: .
     container_name: contract_frontend
-    command: >
-      streamlit run frontend.py 
-      --server.port 8501 
-      --server.address 0.0.0.0 
-      --server.enableCORS true 
-      --server.enableXsrfProtection false 
-      --server.enableWebsocketCompression false
-      --server.headless true
+    working_dir: /code
     ports:
       - "8501:8501"
     volumes:
       - .:/code
     depends_on:
       - api
+    env_file:
+      - .env
+    command: >
+      streamlit run frontend.py 
+      --server.port 8501 
+      --server.address 0.0.0.0 
+      --server.enableCORS true 
+      --server.enableXsrfProtection false
+    restart: unless-stopped
 
-# This defines the named volume to persist Chroma's data
 volumes:
   chroma_data:

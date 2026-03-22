@@ -1,116 +1,109 @@
 import streamlit as st
 import requests
-import json
+import os
 
-st.set_page_config(page_title="Contract Intelligence", layout="wide")
+# Inside Docker, the API service is reachable at http://api:8000
+API_URL = os.getenv("BACKEND_URL", "http://api:8000")
 
-# Sidebar for Controls
-with st.sidebar:
-    st.header("📋 Document Controls")
-    
-    # Upload Section
-    st.subheader("1. Upload Contract")
-    uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
-    
-    if uploaded_file:
-        if st.button("📤 Ingest Document", type="primary"):
-            with st.spinner("Analyzing contract..."):
-                files = {"file": (uploaded_file.name, uploaded_file.getvalue(), "application/pdf")}
-                response = requests.post("http://api:8000/ingest-single", files=files)
-                if response.status_code == 200:
-                    st.success(f"✅ Ingested! ID: {response.json()['document_id'][:8]}...")
-                    st.session_state.doc_id = response.json()['document_id']
-                    st.session_state.filename = uploaded_file.name
-                else:
-                    st.error("❌ Upload failed.")
-    
-    # Risk Analysis Controls
-    if "doc_id" in st.session_state:
-        st.divider()
-        st.subheader("2. Risk Analysis")
-        if st.button("🔍 Run Risk Audit", type="secondary"):
-            st.session_state.run_audit = True
-            st.rerun()
+st.set_page_config(page_title="Contract Intelligence AI", layout="wide")
 
-# Main Area for Results
 st.title("📄 Contract Intelligence AI")
-st.markdown("*AI-powered contract analysis and risk detection*")
+st.markdown("### *Hybrid Search & Proactive Risk Detection*")
 
-# Document Status
-if "doc_id" in st.session_state:
-    st.info(f"📋 **Active Document:** {st.session_state.get('filename', 'Unknown')}")
+# Sidebar: Connection Status & Upload
+with st.sidebar:
+    st.header("Settings")
+    try:
+        health = requests.get(f"{API_URL}/healthz", timeout=2).json()
+        st.success("✅ API Connected")
+    except:
+        st.error("❌ API Offline - Check Logs")
+
+    st.divider()
+    
+    st.header("1. Upload Contract")
+    uploaded_files = st.file_uploader(
+        "Upload PDFs", 
+        type="pdf", 
+        accept_multiple_files=True
+    )
+    
+    if uploaded_files and st.button("🚀 Ingest All Documents"):
+        if not uploaded_files:
+            st.error("Please upload some PDFs first!")
+        else:
+            for file in uploaded_files:
+                with st.spinner(f"Ingesting {file.name}..."):
+                    files = {"file": (file.name, file.getvalue(), "application/pdf")}
+                    response = requests.post(f"{API_URL}/ingest-single", files=files)
+                    
+                    if response.status_code == 200:
+                        st.session_state.doc_id = response.json()["document_id"]
+                        # Add to ingested files list
+                        if "ingested_files" not in st.session_state:
+                            st.session_state.ingested_files = set()
+                        st.session_state.ingested_files.add(file.name)
+                        st.success(f"✅ {file.name} is now in the database!")
+                    else:
+                        st.error(f"❌ Failed to ingest {file.name}")
+            st.success("All documents processed!")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("🧠 Knowledge Base")
+
+# Initialize ingested files tracking
+if "ingested_files" not in st.session_state:
+    st.session_state.ingested_files = set()
+
+# Display the list
+if st.session_state.ingested_files:
+    for doc in st.session_state.ingested_files:
+        st.sidebar.caption(f"📄 {doc}")
 else:
-    st.warning("👈 Please upload a contract PDF to begin analysis")
+    st.sidebar.info("No documents in memory yet.")
 
-# Risk Analysis Report in Main Area
-if st.session_state.get('run_audit', False) and "doc_id" in st.session_state:
-    with st.spinner("🔍 Auditing contract for legal risks..."):
-        audit_res = requests.get(f"http://api:8000/audit/{st.session_state.doc_id}")
+# Main Dashboard
+if "doc_id" in st.session_state:
+    tab1, tab2 = st.tabs(["🔍 Smart Query", "🚩 Risk Audit"])
+
+    with tab1:
+        st.subheader("🔍 Smart Query")
         
-    if audit_res.status_code == 200:
-        st.header("⚠️ Risk Analysis Report")
+        # Search scope selection
+        search_mode = st.radio(
+            "Search Scope:",
+            ["Current Document Only", "All Uploaded Contracts (Global)"],
+            index=0,
+            horizontal=True
+        )
         
-        # Risk Score Metrics
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Risk Level", "High", delta="-2 from last scan", delta_color="inverse")
-        with col2:
-            st.metric("Clauses Analyzed", "12", delta="+3")
-        with col3:
-            st.metric("Red Flags Found", "3", delta="+1", delta_color="inverse")
-        
-        st.divider()
-        
-        # Full Risk Report
-        with st.expander("📋 **Full Legal Risk Assessment**", expanded=True):
-            risks_text = audit_res.json()["risks"]
-            
-            # Parse and display risks with better formatting
-            if "Red Flags" in risks_text or "red flags" in risks_text.lower():
-                st.error("🚨 **Critical Issues Detected**")
-            elif "Medium" in risks_text or "moderate" in risks_text.lower():
-                st.warning("⚠️ **Moderate Risks Identified**")
+        query = st.text_input("Ask a question about your contract(s):")
+        if st.button("Search"):
+            if not query:
+                st.warning("Please enter a question.")
             else:
-                st.info("ℹ️ **Risk Assessment Complete**")
-            
-            # Display the full analysis
-            st.markdown(risks_text)
-        
-        # Reset the audit flag
-        st.session_state.run_audit = False
-        
-    else:
-        st.error("❌ Risk audit failed. Please try again.")
-        st.session_state.run_audit = False
+                # If user picked Global, we send None as the document_id
+                doc_id_to_send = st.session_state.get("doc_id") if search_mode == "Current Document Only" else None
+                
+                with st.spinner("Analyzing across documents..."):
+                    response = requests.post(
+                        f"{API_URL}/ask",
+                        json={"question": query, "document_id": doc_id_to_send}
+                    )
+                    if response.status_code == 200:
+                        res = response.json()
+                        st.info(res["answer"])
+                        
+                        with st.expander("View Source Citations"):
+                            for cite in res["citations"]:
+                                st.caption(f"Page/Chunk {cite['chunk_number']} from {cite['filename']}")
+                    else:
+                        st.error(f"Error: {response.text}")
 
-# Chat Interface
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Display chat history
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# User Input
-if prompt := st.chat_input("Ask a question about your contract..."):
-    if "doc_id" not in st.session_state:
-        st.warning("Please upload and ingest a document first!")
-    else:
-        # Display user message
-        st.chat_message("user").markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
-
-        # Get AI Response
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                response = requests.post(
-                    "http://api:8000/ask",                     "http://localhost:8000/ask",
-                    json={"question": prompt}
-                )
-                if response.status_code == 200:
-                    answer = response.json()["answer"]
-                    st.markdown(answer)
-                    st.session_state.messages.append({"role": "assistant", "content": answer})
-                else:
-                    st.error("Error getting answer.")
+    with tab2:
+        if st.button("Run Full Risk Audit"):
+            with st.spinner("AI is reviewing legal risks..."):
+                audit_res = requests.get(f"{API_URL}/audit/{st.session_state.doc_id}").json()
+                st.markdown(audit_res["risks"])
+else:
+    st.info("👈 Please upload and ingest a contract to begin.")

@@ -1,14 +1,27 @@
-fastapi
-uvicorn[standard]
-langchain
-chromadb
-python-multipart
+# Core API & Data Validation
+fastapi==0.110.0
+pydantic>=2.0.0
 pydantic-settings
+uvicorn[standard]==0.29.0
+
+# LangChain Ecosystem
+langchain==0.1.16
+langchain-core==0.1.45
+langchain-community==0.0.32
+langchain-google-genai==1.0.1
+langchain-text-splitters==0.0.1
+langchain-chroma==0.1.0
+
+# Vector DB & Search
+chromadb
+rank_bm25
+
+# Document Processing & Utilities
 pymupdf
-langchain-google-genai
-langchain-core
-langchain-text-splitters
-langchain-community
-langchain-chroma
+python-multipart
+requests
+streamlit
+
+# Testing
 pytest
 httpx

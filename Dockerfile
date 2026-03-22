@@ -1,17 +1,20 @@
-# Start from an official Python 3.11 image
-FROM python:3.11-slim
+FROM python:3.10-slim
+WORKDIR /app
 
-# Set the working directory inside the container
-WORKDIR /code
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the requirements file first and install dependencies
-# This leverages Docker caching - it only re-installs if requirements.txt changes
-COPY ./requirements.txt /code/requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Now copy the rest of your application code
-COPY ./app /code/app
+COPY . .
 
-# Command to run your application using uvicorn
-# It will run the 'app' object from the 'app.main' module
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Permissions for ChromaDB storage
+RUN mkdir -p /app/chroma_data && chmod 777 /app/chroma_data
+
+RUN chmod +x run.sh
+EXPOSE 7860
+CMD ["./run.sh"]
